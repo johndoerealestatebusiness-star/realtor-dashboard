@@ -1,1 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Real Estate Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f8f9fa;
+    --bg-card: #ffffff;
+    --bg-hover: #f1f3f5;
+    --text-primary: #1a1a1a;
+    --text-secondary: #6b7280;
+    --text-tertiary: #9ca3af;
+    --border-color: #e5e7eb;
+    --accent-primary: #6366f1;
+    --accent-hover: #4f46e5;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+    --shadow-lg: 0 10px 15px rgba(0,0,0,0.1);
+}
+
+[data-theme="dark"] {
+    --bg-primary: #0a0a0a;
+    --bg-secondary: #121212;
+    --bg-card: #1a1a1a;
+    --bg-hover: #252525;
+    --text-primary: #ffffff;
+    --text-secondary: #a1a1aa;
+    --text-tertiary: #71717a;
+    --border-color: #2a2a2a;
+    --shadow-lg: 0 10px 15px rgba(0,0,0,0.5);
+}
+
+body {
+    font-family: Inter, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    transition: 0.3s ease;
+}
+
+.dashboard { min-height: 100vh; background: var(--bg-secondary); }
+
+/* Header */
+.header {
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border-color);
+    padding: 1rem 2rem;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+}
+
+.header-content {
+    max-width: 1400px;
+    margin: auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.logo {
+    font-size: 1.5rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--accent-primary), #8b5cf6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--accent-primary), #8b5cf6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+}
+
+/* Main */
+.container {
+    max-width: 1400px;
+    margin: auto;
+    padding: 2rem;
+}
+
+/* Stats */
+.stats-grid {
+    display: grid;
+    gap: 1.5rem;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.stat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    padding: 1.5rem;
+    border-radius: 16px;
+}
+
+.stat-value {
+    font-size: 2.5rem;
+    font-weight: 700;
+}
+
+/* Table */
+.leads-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    padding: 1.5rem;
+    border-radius: 16px;
+    margin-top: 2rem;
+}
+
+.leads-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.leads-table th, .leads-table td {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* Loading */
+.loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 200px;
+    color: var(--text-secondary);
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--border-color);
+    border-top-color: var(--accent-primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+
+<body>
+<div class="dashboard">
+
+<!-- HEADER -->
+<header class="header">
+<div class="header-content">
+    <div class="logo">🏠 Estate Pro</div>
+    <div class="avatar">RA</div>
+</div>
+</header>
+
+<!-- MAIN -->
+<main class="container">
+
+<!-- STATS -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div>Total Leads</div>
+        <div class="stat-value" id="totalLeads">-</div>
+    </div>
+
+    <div class="stat-card">
+        <div>Last 24 Hours</div>
+        <div class="stat-value" id="leads24h">-</div>
+    </div>
+
+    <div class="stat-card">
+        <div>Last 7 Days</div>
+        <div class="stat-value" id="leads7d">-</div>
+    </div>
+
+    <div class="stat-card">
+        <div>Avg Lead Score</div>
+        <div class="stat-value" id="avgScore">-</div>
+    </div>
+</div>
+
+<!-- TABLE -->
+<div class="leads-card">
+    <h2>Recent Leads</h2>
+    <div id="leadsTableContainer">
+        <div class="loading">
+            <div class="spinner"></div>
+            &nbsp; Loading leads...
+        </div>
+    </div>
+</div>
+
+</main>
+</div>
+
+<script>
+let allLeads = [];
+let leadsChart = null;
+
+async function fetchDashboardData() {
+    try {
+        const response = await fetch("https://krixsai.app.n8n.cloud/webhook/dashboard-data");
+        const data = await response.json();
+
+        allLeads = data.leads || [];
+
+        updateStats(data);
+        updateLeadsTable(allLeads);
+
+    } catch (err) {
+        console.error(err);
+        document.getElementById("leadsTableContainer").innerHTML = `
+            <div class="loading">❌ Failed to load dashboard data</div>
+        `;
+    }
+}
+
+function updateStats(d) {
+    document.getElementById("totalLeads").textContent = d.total_leads || 0;
+    document.getElementById("leads24h").textContent = d.leads_last_24h || 0;
+    document.getElementById("leads7d").textContent = d.leads_last_7_days || 0;
+    document.getElementById("avgScore").textContent = d.average_lead_score || 0;
+}
+
+function updateLeadsTable(leads) {
+    const container = document.getElementById("leadsTableContainer");
+
+    if (!leads.length) {
+        container.innerHTML = `<div class="loading">No leads found</div>`;
+        return;
+    }
+
+    const rows = leads
+        .map(l => `
+            <tr>
+                <td>${l.Name || "N/A"}</td>
+                <td>${l.Email || "N/A"}<br><small>${l.Phone || ""}</small></td>
+                <td>${l.Area || "N/A"}</td>
+                <td>${l.Intent || "N/A"}</td>
+                <td>${l.Budget || "N/A"}</td>
+                <td>${l["Lead Score"] || 0}</td>
+                <td>${l.Date || "N/A"}</td>
+            </tr>
+        `)
+        .join("");
+
+    container.innerHTML = `
+        <table class="leads-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Contact</th>
+                    <th>Area</th>
+                    <th>Intent</th>
+                    <th>Budget</th>
+                    <th>Score</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+        </table>
+    `;
+}
+
+fetchDashboardData();
+setInterval(fetchDashboardData, 300000);
+</script>
+
+</body>
+</html>
 
